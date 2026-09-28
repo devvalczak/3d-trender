@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3D Trender</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232f6fed'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top">
+  <div class="brand">3D&nbsp;Trender</div>
+  <nav id="tabs">
+    <button data-tab="opps" class="active">Okazje</button>
+    <button data-tab="models">Modele 3D</button>
+    <button data-tab="market">Konkurencja</button>
+    <button data-tab="calc">Kalkulator</button>
+    <button data-tab="discover">Trendy i sezony</button>
+    <button data-tab="keywords">Obserwowane frazy</button>
+    <button data-tab="settings">Ustawienia</button>
+  </nav>
+</header>
+<div id="demo-banner" class="banner hidden"></div>
+
+<main>
+  <!-- OKAZJE -->
+  <section id="tab-opps" class="tab active">
+    <div class="toolbar">
+      <h1>Co warto teraz drukować</h1>
+      <div class="spacer"></div>
+      <label>Sortuj <select id="opp-sort">
+        <option value="score">Najbardziej opłacalne</option>
+        <option value="profit_h">Zysk / h drukarki</option>
+        <option value="profit">Zysk / szt.</option>
+        <option value="demand">Popyt</option>
+        <option value="trend">Trend</option>
+        <option value="season">Sezon</option>
+      </select></label>
+      <label>Kategoria <select id="opp-cat"><option value="">wszystkie</option></select></label>
+      <button id="scan-btn" class="primary">Skanuj</button>
+      <button id="scan-refresh-btn" title="Pomija cache i pobiera dane od nowa">Odśwież dane</button>
+    </div>
+    <div id="scan-status" class="muted"></div>
+    <div id="season-strip" class="strip"></div>
+    <div class="table-wrap"><table id="opp-table" class="data">
+      <thead><tr><th>#</th><th>Ocena</th><th>Produkt</th><th>Trend</th><th>Oferty</th><th>Mediana</th>
+        <th>Koszt</th><th>Zysk/szt.</th><th>Zysk/h</th><th>Sezon</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div id="opp-empty" class="empty hidden">Brak wyników. Kliknij <b>Skanuj</b>, żeby przeanalizować obserwowane frazy.</div>
+  </section>
+
+  <!-- MODELE -->
+  <section id="tab-models" class="tab">
+    <form id="models-form" class="toolbar wrap">
+      <input id="models-q" placeholder="np. organizer na biurko, articulated dragon..." required>
+      <label><input type="checkbox" id="models-commercial"> tylko do sprzedaży</label>
+      <label>max koszt licencji <input id="models-maxcost" type="number" min="0" step="1" class="num" placeholder="zł"></label>
+      <label>Sortuj <select id="models-sort">
+        <option value="score">Najbardziej opłacalne</option>
+        <option value="profit_h">Zysk / h</option>
+        <option value="profit">Zysk / szt.</option>
+        <option value="popularity">Popularność</option>
+        <option value="cost">Najtańsze w produkcji</option>
+      </select></label>
+      <details class="inline"><summary>parametry wydruku</summary>
+        <label>waga g <input id="models-w" type="number" min="0" step="any" class="num"></label>
+        <label>czas h <input id="models-t" type="number" min="0" step="any" class="num"></label>
+        <label>filament <select id="models-fil" class="fil-select"><option value="">z katalogu</option></select></label>
+      </details>
+      <button class="primary">Szukaj</button>
+    </form>
+    <div id="models-meta" class="muted"></div>
+    <div id="models-results" class="cards"></div>
+    <div id="models-links" class="links"></div>
+  </section>
+
+  <!-- KONKURENCJA -->
+  <section id="tab-market" class="tab">
+    <form id="market-form" class="toolbar wrap">
+      <input id="market-q" placeholder="fraza PL (Allegro, OLX)" required>
+      <input id="market-qen" placeholder="fraza EN (Etsy, eBay), opcjonalnie">
+      <label><input type="checkbox" id="market-refresh"> pomiń cache</label>
+      <button class="primary">Sprawdź konkurencję</button>
+    </form>
+    <div id="market-summary"></div>
+    <div class="table-wrap"><table id="market-table" class="data">
+      <thead><tr><th>Źródło</th><th>Oferta</th><th>Cena</th><th>PLN</th><th>Sprzedano / ♥</th><th>Sprzedawca</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div id="market-links" class="links"></div>
+  </section>
+
+  <!-- KALKULATOR -->
+  <section id="tab-calc" class="tab">
+    <div class="grid2">
+      <div class="panel">
+        <h2>Parametry wydruku</h2>
+        <div id="dropzone" class="dropzone">
+          Upuść plik <b>.3mf</b> (pocięty w Bambu Studio), <b>.gcode</b> lub <b>.stl</b>
+          <input type="file" id="file-input" accept=".3mf,.stl,.gcode,.gco">
+        </div>
+        <div id="file-info" class="muted"></div>
+        <form id="calc-form" class="form">
+          <label>Waga [g] <input name="weight_g" type="number" step="any" min="0.1" value="50" required></label>
+          <label>Czas druku 1 szt. [h] <input name="print_time_h" type="number" step="any" min="0.01" value="2" required></label>
+          <label>Drukarka <select name="printer_id" class="prn-select"></select></label>
+          <label>Filament <select name="filament_id" class="fil-select"></select></label>
+          <label>Sztuk na stole <input name="units_per_plate" type="number" min="1" value="1"></label>
+          <label>Zmiany koloru (AMS) <input name="color_changes" type="number" min="0" value="0"></label>
+          <label>Obróbka [min] <input name="post_processing_min" type="number" min="0" value="0"></label>
+          <label>Licencja / plik [zł] <input name="license_cost_pln" type="number" min="0" step="any" value="0"></label>
+          <label>Kanał sprzedaży <select name="channel" class="fee-select"></select></label>
+          <label>Cena sprzedaży [zł] <input name="sale_price_pln" type="number" min="0" step="any" placeholder="opcjonalnie"></label>
+          <button class="primary">Policz</button>
+        </form>
+      </div>
+      <div class="panel" id="calc-result"><h2>Wynik</h2><p class="muted">Wpisz parametry albo wgraj plik.</p></div>
+    </div>
+  </section>
+
+  <!-- TRENDY I SEZONY -->
+  <section id="tab-discover" class="tab">
+    <div class="grid2">
+      <div class="panel">
+        <h2>Kalendarz sprzedaży</h2>
+        <div id="seasons-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Rosnące zapytania (Google Trends)</h2>
+        <form id="discover-form" class="toolbar wrap">
+          <input id="discover-seeds" value="druk 3d, wydruk 3d, prezent personalizowany">
+          <button class="primary">Szukaj nowych fraz</button>
+        </form>
+        <div id="discover-list"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Trend frazy</h2>
+      <form id="trend-form" class="toolbar"><input id="trend-q" placeholder="fraza" required><button class="primary">Pokaż</button></form>
+      <div id="trend-chart"></div>
+    </div>
+  </section>
+
+  <!-- FRAZY -->
+  <section id="tab-keywords" class="tab">
+    <div class="toolbar"><h1>Obserwowane frazy</h1></div>
+    <p class="muted">Waga i czas to typowe wartości dla produktu. Popraw je po znalezieniu konkretnego modelu, bo od nich zależy wyliczony zysk.</p>
+    <form id="kw-form" class="toolbar wrap">
+      <input name="keyword" placeholder="fraza PL" required>
+      <input name="keyword_en" placeholder="fraza EN">
+      <input name="category" placeholder="kategoria" class="num">
+      <label>g <input name="weight_g" type="number" step="any" min="0.1" value="50" class="num"></label>
+      <label>h <input name="time_h" type="number" step="any" min="0.01" value="2" class="num"></label>
+      <select name="filament" class="fil-select"></select>
+      <select name="seasons" multiple size="1" id="kw-seasons"></select>
+      <button class="primary">Dodaj</button>
+    </form>
+    <div class="table-wrap"><table id="kw-table" class="data">
+      <thead><tr><th>Aktywna</th><th>Fraza</th><th>EN</th><th>Kategoria</th><th>Waga g</th><th>Czas h</th><th>Filament</th><th>Obróbka min</th><th>Sezony</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- USTAWIENIA -->
+  <section id="tab-settings" class="tab">
+    <div class="grid2">
+      <div class="panel"><h2>Źródła danych</h2><div id="sources-status"></div>
+        <p class="muted">Klucze API ustawiasz w pliku <code>.env</code> (patrz <code>.env.example</code>), potem uruchom aplikację ponownie.</p></div>
+      <div class="panel"><h2>Koszty ogólne</h2><form id="general-form" class="form"></form></div>
+    </div>
+    <div class="panel"><h2>Drukarki</h2><div id="printers-edit"></div></div>
+    <div class="panel"><h2>Filamenty</h2><div id="filaments-edit"></div></div>
+    <div class="panel"><h2>Prowizje kanałów sprzedaży</h2><div id="fees-edit"></div></div>
+    <div class="toolbar"><button id="profile-save" class="primary">Zapisz ustawienia</button>
+      <button id="profile-reset">Przywróć domyślne</button><span id="profile-msg" class="muted"></span></div>
+  </section>
+</main>
+
+<div id="drawer" class="drawer hidden"><button class="close" id="drawer-close">×</button><div id="drawer-body"></div></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
