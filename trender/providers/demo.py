@@ -24,6 +24,12 @@ def _rng(*parts: str) -> random.Random:
     return random.Random(int(h[:12], 16))
 
 
+def _dims(query: str) -> tuple[float, float, float, int]:
+    from ..catalog import DEFAULT_DIMS, DIMS
+    row = _CATALOG.get(query.lower())
+    return DIMS.get(row[0], DEFAULT_DIMS) if row else DEFAULT_DIMS
+
+
 def _profile(query: str) -> tuple[float, float, list[str]]:
     row = _CATALOG.get(query.lower())
     if row:
@@ -114,17 +120,20 @@ class DemoModels:
     async def search(self, client, query: str, limit: int = 20) -> list[ModelHit]:
         r = _rng("models", query)
         weight, hours, _ = _profile(query)
+        dx, dy, dz, colors = _dims(query)
         out = []
         for i in range(min(limit, 10)):
             lic, code, price = _DEMO_LICENSES[r.randrange(len(_DEMO_LICENSES))]
-            w = weight * r.uniform(0.5, 1.6)
+            k = r.uniform(0.8, 1.17)
+            w = weight * k ** 3
             out.append(ModelHit(
                 source=self.name, id=f"demo-{i}", title=f"[DEMO] {query.title()} v{i + 1}", url=None,
                 author=f"designer_{r.randint(1, 99)}", likes=int(r.expovariate(1 / 400)),
                 downloads=int(r.expovariate(1 / 2500)), license_raw=lic, license_code=code,
                 file_price=price, file_currency="EUR",
                 commercial_license_cost_pln=r.choice([None, 20.0, 45.0]) if "Non-Commercial" in lic else None,
-                est_weight_g=round(w, 1), est_time_h=round(hours * w / weight, 2), demo=True,
+                est_weight_g=round(w, 1), est_time_h=round(hours * w / weight, 2),
+                size_mm=[round(dx * k), round(dy * k), round(dz * k)], colors=colors, size_source="DEMO", demo=True,
             ))
         return out
 

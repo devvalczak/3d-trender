@@ -72,4 +72,8 @@ class ModelHit(BaseModel):
     commercial_license_cost_pln: float | None = None  # znany koszt licencji komercyjnej
     est_weight_g: float | None = None
     est_time_h: float | None = None
+    size_mm: list[float] | None = None  # [x, y, z] jeśli znane (z pliku lub serwisu)
+    colors: int | None = None
+    color_changes: int | None = None  # zmiany koloru na płytę
+    size_source: str | None = None
     demo: bool = False

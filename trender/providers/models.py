@@ -54,6 +54,26 @@ class ThingiverseProvider:
         return out
 
 
+    MAX_FILE = 60 * 1024 * 1024
+
+    async def download(self, client: httpx.AsyncClient, hit: ModelHit) -> tuple[str, bytes] | None:
+        """Pobiera plik do druku (preferuje .3mf, potem największy .stl) przez oficjalne API."""
+        headers = {"Authorization": f"Bearer {self.token}"}
+        r = await client.get(f"{self.API}/things/{hit.id}/files", headers=headers)
+        raise_for(r, "Thingiverse (pliki)")
+        files = [f for f in r.json() or [] if str(f.get("name", "")).lower().endswith((".3mf", ".stl"))]
+        if not files:
+            return None
+        files.sort(key=lambda f: (not f["name"].lower().endswith(".3mf"), -(to_int(f.get("size")) or 0)))
+        f = files[0]
+        if (to_int(f.get("size")) or 0) > self.MAX_FILE:
+            return None
+        url = f.get("download_url") or f"{self.API}/files/{f.get('id')}/download"
+        d = await client.get(url, headers=headers)
+        raise_for(d, "Thingiverse (pobieranie)")
+        return f["name"], d.content
+
+
 class Cults3DProvider:
     """Cults3D GraphQL API (Basic Auth: nazwa użytkownika + klucz API)."""
 

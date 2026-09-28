@@ -33,8 +33,13 @@ def test_units_per_plate_and_purge_reduce_or_add_cost():
     one = compute_cost(CostInput(weight_g=10, print_time_h=0.5), p)
     many = compute_cost(CostInput(weight_g=10, print_time_h=0.5, units_per_plate=8), p)
     assert many.machine_time_h < one.machine_time_h
-    colors = compute_cost(CostInput(weight_g=10, print_time_h=0.5, color_changes=10), p)
+    colors = compute_cost(CostInput(weight_g=10, print_time_h=0.5, color_changes=10, printer_id="p1s"), p)
     assert colors.filament_g == pytest.approx(10 * 1.05 + 10 * 0.8)
+    # na płycie z 5 sztukami płukanie i czas zmian dzielą się na 5
+    batch = compute_cost(CostInput(weight_g=10, print_time_h=0.5, color_changes=10, units_per_plate=5,
+                                   printer_id="p1s"), p)
+    assert batch.filament_g == pytest.approx(10 * 1.05 + 10 * 0.8 / 5)
+    assert batch.machine_time_h == pytest.approx(0.5 + (6 / 60 + 10 * 40 / 3600) / 5, abs=1e-3)
 
 
 def test_suggested_price_hits_target_margin_and_profit_at_price():

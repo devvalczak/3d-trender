@@ -52,12 +52,35 @@ SEED: list[tuple] = [
 ]
 
 
+# typowe wymiary gotowego produktu [x, y, z mm] i liczba kolorów (1 = jednokolorowy)
+DIMS: dict[str, tuple[float, float, float, int]] = {
+    "organizer na biurko": (180, 90, 80, 1), "gridfinity": (84, 42, 50, 1), "organizer do szuflady": (150, 80, 40, 1),
+    "uchwyt na kable": (40, 20, 15, 1), "podstawka pod telefon": (75, 70, 90, 1),
+    "stojak na słuchawki": (110, 100, 250, 1), "stojak na pada": (90, 70, 80, 1),
+    "akcesoria ikea skadis": (60, 40, 50, 1), "wieszak na klucze": (150, 40, 60, 2),
+    "stojak na przyprawy": (230, 90, 150, 1), "foremki do ciastek": (70, 70, 15, 1),
+    "doniczka samonawadniająca": (110, 110, 110, 1), "wazon spiralny": (90, 90, 200, 1),
+    "lampa księżyc": (110, 110, 110, 1), "litofan ze zdjęciem": (100, 5, 150, 1),
+    "smok articulated": (200, 120, 25, 1), "fidget toy": (50, 50, 15, 1), "breloczek z imieniem": (55, 18, 4, 2),
+    "tabliczka z imieniem": (150, 60, 5, 2), "topper na tort": (130, 90, 5, 1), "figurki d&d": (25, 25, 35, 1),
+    "wieża do kości": (100, 100, 210, 1), "ozdoby choinkowe": (60, 60, 6, 2), "kalendarz adwentowy": (240, 120, 200, 1),
+    "choinka dekoracyjna": (100, 100, 150, 1), "dekoracje halloween": (80, 80, 60, 2),
+    "dynia halloween": (100, 100, 80, 2), "czaszka dekoracja": (90, 110, 100, 1), "pisanki": (45, 45, 60, 2),
+    "zajączek wielkanocny": (60, 50, 90, 1), "serce walentynki": (70, 65, 20, 1), "zakładka do książki": (40, 150, 2, 2),
+    "przybornik na długopisy": (80, 80, 100, 1), "uchwyt na rower": (120, 80, 100, 1),
+    "karmnik dla ptaków": (150, 150, 180, 1), "stojak na biżuterię": (100, 100, 150, 1), "mydelniczka": (110, 80, 20, 1),
+    "abażur lampy": (180, 180, 180, 1), "uchwyt na router": (200, 40, 40, 1), "podkładki pod kubki": (95, 95, 4, 2),
+}
+DEFAULT_DIMS = (60.0, 60.0, 40.0, 1)
+
+
 def seed_rows() -> list[dict]:
     rows = []
     for pl, en, cat, w, t, fil, post, cc, seasons in SEED:
         rows.append({
             "keyword": pl, "keyword_en": en, "category": cat, "weight_g": w, "time_h": t,
             "filament": fil, "post_min": post, "color_changes": cc, "seasons": seasons,
+            **dict(zip(("size_x", "size_y", "size_z", "colors"), DIMS.get(pl, DEFAULT_DIMS))),
         })
     return rows
 

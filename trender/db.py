@@ -26,12 +26,20 @@ CREATE TABLE IF NOT EXISTS keywords (
     post_min REAL DEFAULT 0,
     color_changes INTEGER DEFAULT 0,
     seasons TEXT DEFAULT '["all_year"]',
-    active INTEGER DEFAULT 1
+    active INTEGER DEFAULT 1,
+    size_x REAL, size_y REAL, size_z REAL,
+    colors INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS opportunities (
     keyword_id INTEGER PRIMARY KEY REFERENCES keywords(id) ON DELETE CASCADE,
     data TEXT NOT NULL,
     updated_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS flow_runs (
+    id TEXT PRIMARY KEY,
+    created_at REAL NOT NULL,
+    params TEXT NOT NULL,
+    data TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS market_history (
     keyword TEXT NOT NULL,
@@ -45,7 +53,10 @@ CREATE TABLE IF NOT EXISTS market_history (
 """
 
 KEYWORD_FIELDS = ("keyword", "keyword_en", "category", "weight_g", "time_h", "filament", "post_min",
-                  "color_changes", "seasons", "active")
+                  "color_changes", "seasons", "active", "size_x", "size_y", "size_z", "colors")
+
+# kolumny dodane po pierwszej wersji: dopisywane do istniejących baz
+MIGRATIONS = {"keywords": {"size_x": "REAL", "size_y": "REAL", "size_z": "REAL", "colors": "INTEGER DEFAULT 1"}}
 
 
 class Store:
@@ -58,10 +69,24 @@ class Store:
         self.lock = threading.Lock()
         with self.lock:
             self.conn.executescript(SCHEMA)
+            self._migrate()
             if not self.conn.execute("SELECT 1 FROM keywords LIMIT 1").fetchone():
                 for row in seed_rows():
                     self._insert_keyword(row)
             self.conn.commit()
+
+    def _migrate(self) -> None:
+        from .catalog import DIMS
+        for table, cols in MIGRATIONS.items():
+            have = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            for col, typ in cols.items():
+                if col not in have:
+                    self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+        # uzupełnij wymiary fraz z katalogu w starych bazach
+        for kw, (x, y, z, c) in DIMS.items():
+            self.conn.execute("UPDATE keywords SET size_x=?, size_y=?, size_z=?, colors=? WHERE keyword=? AND size_x IS NULL",
+                              (x, y, z, c, kw))
+        self.conn.commit()
 
     # ------------------------------------------------ cache
     def cache_get(self, key: str) -> Any | None:
@@ -159,6 +184,26 @@ class Store:
             d["updated_at"] = r["updated_at"]
             out.append(d)
         return out
+
+    # ------------------------------------------------ przebiegi asystenta
+    def save_flow_run(self, run_id: str, params: dict, data: dict) -> None:
+        with self.lock:
+            self.conn.execute("INSERT OR REPLACE INTO flow_runs VALUES (?,?,?,?)",
+                              (run_id, time.time(), json.dumps(params), json.dumps(data)))
+            self.conn.commit()
+
+    def list_flow_runs(self, limit: int = 20) -> list[dict]:
+        with self.lock:
+            rows = self.conn.execute("SELECT id, created_at, params FROM flow_runs ORDER BY created_at DESC LIMIT ?",
+                                     (limit,)).fetchall()
+        return [{"id": r["id"], "created_at": r["created_at"], "params": json.loads(r["params"])} for r in rows]
+
+    def get_flow_run(self, run_id: str) -> dict | None:
+        with self.lock:
+            r = self.conn.execute("SELECT * FROM flow_runs WHERE id=?", (run_id,)).fetchone()
+        if not r:
+            return None
+        return {"id": r["id"], "created_at": r["created_at"], "params": json.loads(r["params"]), **json.loads(r["data"])}
 
     def record_history(self, keyword: str, day: str, total: int | None, median: float | None,
                        sold: int | None, trend_level: float | None) -> None:

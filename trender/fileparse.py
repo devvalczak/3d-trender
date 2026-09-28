@@ -27,8 +27,17 @@ class FileAnalysis(BaseModel):
     bbox_mm: list[float] | None = None
     triangles: int | None = None
     plates: int | None = None
-    color_changes: int | None = None
+    objects: int | None = None  # ile obiektów (sztuk) jest na płycie w projekcie
+    unit_weight_g: float | None = None  # waga / czas na jedną sztukę
+    unit_time_h: float | None = None
+    color_changes: int | None = None  # zmiany koloru na płytę
     note: str = ""
+
+    def per_unit(self) -> "FileAnalysis":
+        n = max(self.objects or 1, 1)
+        self.unit_weight_g = round(self.weight_g / n, 2) if self.weight_g else None
+        self.unit_time_h = round(self.print_time_h / n, 3) if self.print_time_h else None
+        return self
 
 
 # ---------------------------------------------------------------- G-code
@@ -116,27 +125,41 @@ def read_stl(data: bytes) -> np.ndarray:
     return np.array(nums, dtype=np.float64).reshape(-1, 3, 3)
 
 
-def read_3mf_mesh(zf: zipfile.ZipFile) -> np.ndarray:
-    all_tris = []
+def _mesh_tris(mesh: ET.Element) -> np.ndarray | None:
+    verts = [(float(v.get("x")), float(v.get("y")), float(v.get("z"))) for v in mesh.iter() if v.tag.endswith("vertex")]
+    idx = [(int(t.get("v1")), int(t.get("v2")), int(t.get("v3"))) for t in mesh.iter() if t.tag.endswith("triangle")]
+    if not verts or not idx:
+        return None
+    return np.array(verts)[np.array(idx)]
+
+
+def read_3mf_objects(zf: zipfile.ZipFile) -> list[np.ndarray]:
+    """Siatki obiektów z 3MF. Plik w 3D/Objects/ (Bambu Studio) = jeden obiekt, w pliku głównym każdy <object>."""
+    objects = []
     for name in zf.namelist():
         if not name.lower().endswith(".model"):
             continue
         root = ET.fromstring(zf.read(name))
-        for mesh in root.iter():
-            if not mesh.tag.endswith("}mesh") and mesh.tag != "mesh":
+        per_file = []
+        for obj in root.iter():
+            if not obj.tag.endswith("object"):
                 continue
-            verts = [(float(v.get("x")), float(v.get("y")), float(v.get("z")))
-                     for v in mesh.iter() if v.tag.endswith("vertex")]
-            if not verts:
-                continue
-            varr = np.array(verts)
-            idx = [(int(t.get("v1")), int(t.get("v2")), int(t.get("v3")))
-                   for t in mesh.iter() if t.tag.endswith("triangle")]
-            if idx:
-                all_tris.append(varr[np.array(idx)])
-    if not all_tris:
+            meshes = [m for m in obj if m.tag.endswith("mesh")]
+            tris = [t for m in meshes if (t := _mesh_tris(m)) is not None]
+            if tris:
+                per_file.append(np.concatenate(tris))
+        if "/objects/" in name.lower() and per_file:
+            objects.append(np.concatenate(per_file))
+        else:
+            objects.extend(per_file)
+    return objects
+
+
+def read_3mf_mesh(zf: zipfile.ZipFile) -> np.ndarray:
+    objects = read_3mf_objects(zf)
+    if not objects:
         raise ValueError("Brak siatki w pliku 3MF")
-    return np.concatenate(all_tris)
+    return np.concatenate(objects)
 
 
 def estimate_from_mesh(volume_cm3: float, area_cm2: float, density: float, throughput_g_h: float,
@@ -160,15 +183,22 @@ def analyze_file(filename: str, data: bytes, density: float = 1.24, throughput_g
     if name.endswith((".gcode", ".gco", ".g", ".bgcode")):
         if name.endswith(".bgcode"):
             raise ValueError("Binarny G-code (.bgcode) nie jest obsługiwany: wyeksportuj zwykły .gcode")
-        return parse_gcode(_gcode_head_tail(data), density)
+        return parse_gcode(_gcode_head_tail(data), density).per_unit()
 
     if name.endswith(".3mf"):
         zf = zipfile.ZipFile(io.BytesIO(data))
         names = zf.namelist()
+        objects = read_3mf_objects(zf)
+        unit = max(objects, key=lambda t: mesh_stats(t)[0]) if objects else None
         if "Metadata/slice_info.config" in names:
             res = _parse_slice_info(zf.read("Metadata/slice_info.config"))
             if res:
-                return res
+                if unit is not None:
+                    res.bbox_mm = mesh_stats(unit)[2]
+                plate_gcode = next((n for n in names if n.lower().endswith(".gcode")), None)
+                if plate_gcode:
+                    res.color_changes = parse_gcode(_gcode_head_tail(zf.read(plate_gcode))).color_changes
+                return res.per_unit()
         gcodes = [n for n in names if n.lower().endswith(".gcode")]
         if gcodes:
             weights = times = 0.0
@@ -179,12 +209,19 @@ def analyze_file(filename: str, data: bytes, density: float = 1.24, throughput_g
                 times += last.print_time_h or 0
             return FileAnalysis(kind="3mf-sliced", exact=True, weight_g=round(weights, 2),
                                 print_time_h=round(times, 3), filament_type=last.filament_type if last else None,
-                                plates=len(gcodes))
-        tris = read_3mf_mesh(zf)
-        return _mesh_result("3mf-mesh", tris, density, throughput_g_h, infill)
+                                plates=len(gcodes), color_changes=last.color_changes if last else None,
+                                objects=len(objects) or None,
+                                bbox_mm=mesh_stats(unit)[2] if unit is not None else None).per_unit()
+        if unit is None:
+            raise ValueError("Brak siatki w pliku 3MF")
+        res = _mesh_result("3mf-mesh", unit, density, throughput_g_h, infill).per_unit()
+        res.objects = len(objects)
+        if len(objects) > 1:
+            res.note += f" Projekt ma {len(objects)} obiektów: liczę największy jako jedną sztukę."
+        return res
 
     if name.endswith(".stl"):
-        return _mesh_result("stl", read_stl(data), density, throughput_g_h, infill)
+        return _mesh_result("stl", read_stl(data), density, throughput_g_h, infill).per_unit()
 
     raise ValueError("Obsługiwane pliki: .stl, .3mf, .gcode")
 
@@ -192,7 +229,7 @@ def analyze_file(filename: str, data: bytes, density: float = 1.24, throughput_g
 def _mesh_result(kind: str, tris: np.ndarray, density: float, throughput: float, infill: float) -> FileAnalysis:
     vol, area, bbox = mesh_stats(tris)
     w, t = estimate_from_mesh(vol, area, density, throughput, infill)
-    return FileAnalysis(kind=kind, exact=False, weight_g=round(w, 1), print_time_h=round(t, 2),
+    return FileAnalysis(kind=kind, exact=False, weight_g=round(w, 1), print_time_h=round(t, 2), objects=1,
                         volume_cm3=round(vol, 2), area_cm2=round(area, 1), bbox_mm=bbox, triangles=len(tris),
                         note=f"Szacunek z siatki (wypełnienie {int(infill * 100)}%, skorupa ok. 1 mm). "
                              "Dla dokładnych wartości wgraj pocięty .3mf z Bambu Studio.")
@@ -202,6 +239,7 @@ def _parse_slice_info(xml: bytes) -> FileAnalysis | None:
     root = ET.fromstring(xml)
     weight = seconds = 0.0
     plates = 0
+    objects = 0
     ftypes = []
     for plate in root.iter("plate"):
         meta = {m.get("key"): m.get("value") for m in plate.findall("metadata")}
@@ -210,12 +248,14 @@ def _parse_slice_info(xml: bytes) -> FileAnalysis | None:
         plates += 1
         seconds += float(meta.get("prediction") or 0)
         weight += float(meta.get("weight") or 0)
+        if not objects:
+            objects = len([o for o in plate.iter("object") if o.get("skipped", "false") != "true"])
         for f in plate.iter("filament"):
             if f.get("type"):
                 ftypes.append(f.get("type"))
     if not plates:
         return None
     return FileAnalysis(kind="3mf-sliced", exact=True, weight_g=round(weight, 2),
-                        print_time_h=round(seconds / 3600, 3), plates=plates,
+                        print_time_h=round(seconds / 3600, 3), plates=plates, objects=objects if plates == 1 else None,
                         filament_type=ftypes[0] if ftypes else None,
                         note="Wartości ze slicera. Czas obejmuje wszystkie płyty w projekcie.")

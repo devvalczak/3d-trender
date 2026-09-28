@@ -1,6 +1,21 @@
 # 3D Trender
 
-Lokalna aplikacja webowa do przygotowania sprzedaży wydruków 3D. Pokazuje:
+Lokalna aplikacja webowa do przygotowania sprzedaży wydruków 3D.
+
+## Asystent: jeden lejek zamiast skakania po zakładkach
+
+Zakładka **Asystent** (domyślna) przeprowadza produkty przez cztery etapy jednym kliknięciem:
+
+1. **Trendy**: ocena obserwowanych fraz (popyt, konkurencja, sezon, marża). Top N przechodzi dalej. Frazy z wysokim ryzykiem IP są pomijane.
+2. **Modele**: ile modeli jest dostępnych i ile nadaje się do sprzedaży, najlepsi kandydaci. Z Thingiverse aplikacja pobiera plik i czyta wymiary, wagę i czas. Dla innych serwisów bierze typowe wymiary frazy albo plik wgrany ręcznie.
+3. **Stół**: ile sztuk mieści się na płycie (obrys prostokątny, obrót 0°/90°, odstęp i margines, strefy wykluczenia X1C/P1S) z podglądem układu.
+4. **Zysk**: druk w AMS (płukanie i czas zmian koloru dzielone na sztuki na płycie) porównany z drukiem jednokolorowym i malowaniem, plus **optymalny harmonogram doby**. Optymalizator dobiera, ile płyt i po ile sztuk drukować w godzinach obsługi i czy dodać jedną dłuższą płytę na noc.
+
+Na końcu: **plan produkcji** na N dni (z limitem realnego zbytu), **szkic aukcji** (tytuł ≤ 75 znaków, cena, opis z atrybucją autora) i **porównanie z poprzednim przebiegiem**.
+
+Na każdym etapie możesz wykluczyć pozycję, wybrać innego kandydata, poprawić wymiary, wagę, czas, kolory lub cenę albo wgrać własny `.3mf`. Przeliczają się wtedy tylko etapy 3-4, bez ponownego odpytywania serwisów. Pocięty projekt z Bambu Studio z kilkoma obiektami na płycie jest przeliczany na jedną sztukę.
+
+Pozostałe zakładki służą do ręcznego sprawdzania:
 
 - **Okazje**: co warto teraz drukować, posortowane od najbardziej opłacalnych, z oceną *Dobre / Bardzo dobre / Najlepsze* i listą powodów.
 - **Modele 3D**: wyszukiwarkę modeli z filtrem „tylko do sprzedaży”, kosztem licencji komercyjnej i wyliczonym zyskiem dla każdego modelu.

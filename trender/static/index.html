@@ -11,7 +11,8 @@
 <header class="top">
   <div class="brand">3D&nbsp;Trender</div>
   <nav id="tabs">
-    <button data-tab="opps" class="active">Okazje</button>
+    <button data-tab="flow" class="active">Asystent</button>
+    <button data-tab="opps">Okazje</button>
     <button data-tab="models">Modele 3D</button>
     <button data-tab="market">Konkurencja</button>
     <button data-tab="calc">Kalkulator</button>
@@ -24,7 +25,28 @@
 
 <main>
   <!-- OKAZJE -->
-  <section id="tab-opps" class="tab active">
+  <!-- ASYSTENT -->
+  <section id="tab-flow" class="tab active">
+    <div class="toolbar">
+      <h1>Asystent: od trendu do planu produkcji</h1>
+      <div class="spacer"></div>
+      <label>Przebieg <select id="flow-runs"><option value="">nowy</option></select></label>
+      <button id="flow-start" class="primary">Uruchom analizę</button>
+    </div>
+    <details id="flow-params-box" class="panel params">
+      <summary><b>Parametry</b> <span class="muted" id="flow-params-sum"></span></summary>
+      <form id="flow-params" class="form form4"></form>
+      <div class="toolbar"><button id="flow-apply" type="button" class="hidden">Przelicz z nowymi parametrami</button>
+        <span class="muted">Parametry stołu, czasu pracy i zbytu przeliczają się bez ponownego odpytywania serwisów.</span></div>
+    </details>
+    <ol id="flow-steps" class="steps"></ol>
+    <div id="flow-error" class="neg"></div>
+    <div id="flow-summary"></div>
+    <div id="flow-items"></div>
+    <div id="flow-others"></div>
+  </section>
+
+  <section id="tab-opps" class="tab">
     <div class="toolbar">
       <h1>Co warto teraz drukować</h1>
       <div class="spacer"></div>
@@ -179,5 +201,6 @@
 
 <div id="drawer" class="drawer hidden"><button class="close" id="drawer-close">×</button><div id="drawer-body"></div></div>
 <script src="/static/app.js"></script>
+<script src="/static/flow.js"></script>
 </body>
 </html>

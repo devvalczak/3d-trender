@@ -18,6 +18,7 @@ from .config import Settings, get_settings
 from .costing import CostInput, calculate
 from .db import Store
 from .fileparse import analyze_file
+from .flow import FlowParams, FlowRunner, ItemOverride
 from .ip_risk import check_ip
 from .profile import Profile, default_profile
 from .seasonality import upcoming
@@ -38,6 +39,10 @@ class KeywordIn(BaseModel):
     color_changes: int = 0
     seasons: list[str] = Field(default_factory=lambda: ["all_year"])
     active: bool = True
+    size_x: float | None = Field(None, gt=0)
+    size_y: float | None = Field(None, gt=0)
+    size_z: float | None = Field(None, gt=0)
+    colors: int = Field(1, ge=1, le=16)
 
 
 class KeywordPatch(BaseModel):
@@ -50,6 +55,15 @@ class KeywordPatch(BaseModel):
     color_changes: int | None = None
     seasons: list[str] | None = None
     active: bool | None = None
+    size_x: float | None = Field(None, gt=0)
+    size_y: float | None = Field(None, gt=0)
+    size_z: float | None = Field(None, gt=0)
+    colors: int | None = Field(None, ge=1, le=16)
+
+
+class FlowPatch(BaseModel):
+    params: dict | None = None
+    overrides: dict[int, ItemOverride] | None = None
 
 
 class ScanIn(BaseModel):
@@ -64,6 +78,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     async def lifespan(app: FastAPI):
         svc = services or Services(settings, Store(settings.db_path))
         app.state.svc = svc
+        app.state.flow = FlowRunner(svc)
         task = None
         if settings.refresh_interval_hours > 0 and services is None:
             task = asyncio.create_task(_refresh_loop(svc, settings.refresh_interval_hours))
@@ -96,6 +111,71 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
         p = default_profile()
         svc().store.save_profile(p)
         return p
+
+    # ---------------------------------------------------------------- asystent (lejek)
+    def flow() -> FlowRunner:
+        return app.state.flow
+
+    def run_or_404(run_id: str) -> dict:
+        st = flow().get(run_id)
+        if not st:
+            raise HTTPException(404, "Nie ma takiego przebiegu")
+        return st
+
+    @app.get("/api/flow/defaults")
+    def flow_defaults():
+        p = svc().store.get_profile()
+        return {"params": FlowParams(**p.flow.model_dump(), printer_id=p.default_printer).model_dump(),
+                "printers": [{"id": x.id, "name": x.name, "bed": [x.bed_x_mm, x.bed_y_mm]} for x in p.printers]}
+
+    @app.get("/api/flow/runs")
+    def flow_runs():
+        return svc().store.list_flow_runs()
+
+    @app.post("/api/flow")
+    async def flow_start(params: FlowParams):
+        st = flow().start(params)
+        await asyncio.sleep(0)
+        return st
+
+    @app.get("/api/flow/{run_id}")
+    def flow_get(run_id: str):
+        return run_or_404(run_id)
+
+    @app.patch("/api/flow/{run_id}")
+    async def flow_patch(run_id: str, body: FlowPatch):
+        st = run_or_404(run_id)
+        if st["status"] == "running":
+            raise HTTPException(409, "Przebieg jeszcze trwa")
+        return await flow().update(run_id, params=body.params, overrides=body.overrides)
+
+    @app.post("/api/flow/{run_id}/items/{kid}")
+    async def flow_add_item(run_id: str, kid: int):
+        run_or_404(run_id)
+        try:
+            return await flow().add_item(run_id, kid)
+        except KeyError as e:
+            raise HTTPException(404, "Nie ma takiej frazy") from e
+
+    @app.post("/api/flow/{run_id}/items/{kid}/reset")
+    async def flow_reset_item(run_id: str, kid: int):
+        run_or_404(run_id)
+        return await flow().reset_item(run_id, kid)
+
+    @app.post("/api/flow/{run_id}/items/{kid}/file")
+    async def flow_upload(run_id: str, kid: int, file: UploadFile = File(...)):
+        run_or_404(run_id)
+        data = await file.read()
+        if len(data) > MAX_UPLOAD:
+            raise HTTPException(413, "Plik za duży (max 200 MB)")
+        try:
+            return await flow().upload(run_id, kid, file.filename or "", data)
+        except StopIteration as e:
+            raise HTTPException(404, "Tej pozycji nie ma w przebiegu") from e
+        except (ValueError, KeyError) as e:
+            raise HTTPException(400, str(e)) from e
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(400, f"Nie udało się odczytać pliku: {e}") from e
 
     # ---------------------------------------------------------------- frazy
     @app.get("/api/keywords")

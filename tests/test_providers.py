@@ -59,6 +59,13 @@ def handler(req: httpx.Request) -> httpx.Response:
     if "api.thingiverse.com/search" in u:
         return httpx.Response(200, json={"total": 1, "hits": [{"id": 7, "name": "Thing", "public_url": "https://thingiverse.com/thing:7",
                                                                  "like_count": 50, "creator": {"name": "bob"}}]})
+    if "api.thingiverse.com/things/7/files" in u:
+        return httpx.Response(200, json=[{"id": 1, "name": "readme.txt", "size": 10},
+                                         {"id": 2, "name": "small.stl", "size": 100, "download_url": "https://api.thingiverse.com/files/2/download"},
+                                         {"id": 3, "name": "part.3mf", "size": 50, "download_url": "https://api.thingiverse.com/files/3/download"}])
+    if "api.thingiverse.com/files/3/download" in u:
+        assert req.headers["authorization"] == "Bearer t"
+        return httpx.Response(200, content=b"3MFDATA")
     if "api.thingiverse.com/things/7" in u:
         return httpx.Response(200, json={"license": "Creative Commons - Attribution - Non-Commercial", "download_count": 900})
     if "cults3d.com/graphql" in u:
@@ -144,3 +151,13 @@ def test_services_end_to_end_with_mocks(tmp_path):
     assert hits["thingiverse"]["license_total_pln"] is None
     assert [h["source"] for h in filtered["hits"]] == ["cults3d"]
     assert models["matched_keyword"] is not None
+
+
+def test_thingiverse_download_prefers_3mf():
+    from trender.schemas import ModelHit
+
+    async def go():
+        async with client() as c:
+            return await ThingiverseProvider(S).download(c, ModelHit(source="thingiverse", id="7", title="x"))
+    name, data = run(go())
+    assert name == "part.3mf" and data == b"3MFDATA"

@@ -33,7 +33,7 @@ function toast(msg) { alert(msg); }
 $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   $$("#tabs button").forEach((x) => x.classList.toggle("active", x === b));
   $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + b.dataset.tab));
-  const loaders = { keywords: loadKeywords, settings: loadSettings, discover: loadSeasons };
+  const loaders = { keywords: loadKeywords, settings: loadSettings, discover: loadSeasons, opps: loadOpps };
   loaders[b.dataset.tab]?.();
 }));
 

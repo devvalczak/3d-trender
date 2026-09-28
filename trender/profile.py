@@ -19,6 +19,11 @@ class Printer(BaseModel):
     throughput_g_per_h: float  # średnia wydajność do szacowania czasu z samej wagi
     plate_overhead_min: float  # nagrzewanie, kalibracja, zmiana płyty (na jeden stół)
     purge_g_per_color_change: float = 0.0  # odpad AMS na jedną zmianę koloru
+    color_change_s: float = 45  # czas jednej zmiany filamentu w AMS
+    bed_x_mm: float = 256
+    bed_y_mm: float = 256
+    # strefy, w których nie wolno drukować: [x0, y0, x1, y1] w mm od lewego przedniego rogu
+    bed_exclude: list[list[float]] = Field(default_factory=list)
 
 
 class Filament(BaseModel):
@@ -43,11 +48,26 @@ class ScoreWeights(BaseModel):
     season: float = 0.15
 
 
+class FlowDefaults(BaseModel):
+    top_n: int = 15  # ile fraz z trendów przechodzi przez lejek
+    models_per_item: int = 3  # ile najlepszych modeli brać pod uwagę na frazę
+    commercial_only: bool = True
+    max_license_cost_pln: float | None = None
+    spacing_mm: float = 5  # odstęp między obiektami
+    margin_mm: float = 5  # odstęp od krawędzi stołu
+    attended_hours: float = 10  # ile godzin dziennie ktoś może zmieniać płyty
+    allow_night: bool = True  # czy puszczać jedną płytę po godzinach
+    swap_min: float = 5  # zdjęcie wydruków i przygotowanie płyty
+    paint_min_per_color: float = 3  # malowanie ręczne: minuty na sztukę na każdy dodatkowy kolor
+    market_share: float = 0.15  # jaką część sprzedaży rynku realnie przejmiesz (do limitu w planie)
+    plan_days: int = 7
+
+
 class Profile(BaseModel):
     printers: list[Printer]
     filaments: list[Filament]
     fees: list[MarketplaceFee]
-    default_printer: str = "p1s"
+    default_printer: str = "a1"
     default_filament: str = "pla"
     default_channel: str = "allegro"
     energy_price_kwh_pln: float = 1.10
@@ -61,6 +81,7 @@ class Profile(BaseModel):
     target_profit_per_hour_pln: float = 25.0  # zysk/h drukarki uznawany za "bardzo dobry" (100 pkt)
     expected_units_per_model: int = 20  # na ile sztuk rozkładać koszt płatnej licencji / pliku
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
+    flow: FlowDefaults = Field(default_factory=FlowDefaults)
 
     def printer(self, pid: str | None = None) -> Printer:
         pid = pid or self.default_printer
@@ -80,13 +101,19 @@ def default_profile() -> Profile:
         printers=[
             Printer(id="p1s", name="Bambu Lab P1S + AMS", price_pln=3900, lifetime_hours=6000,
                     avg_power_w=110, maintenance_per_hour_pln=0.25, throughput_g_per_h=35,
-                    plate_overhead_min=6, purge_g_per_color_change=0.8),
+                    plate_overhead_min=6, purge_g_per_color_change=0.8, color_change_s=40,
+                    bed_exclude=[[0, 0, 18, 28]]),
             Printer(id="x1c", name="Bambu Lab X1C + AMS", price_pln=5900, lifetime_hours=6000,
                     avg_power_w=120, maintenance_per_hour_pln=0.30, throughput_g_per_h=38,
-                    plate_overhead_min=7, purge_g_per_color_change=0.8),
+                    plate_overhead_min=7, purge_g_per_color_change=0.8, color_change_s=40,
+                    bed_exclude=[[0, 0, 18, 28]]),
             Printer(id="a1", name="Bambu Lab A1 + AMS lite", price_pln=2300, lifetime_hours=5000,
                     avg_power_w=95, maintenance_per_hour_pln=0.25, throughput_g_per_h=30,
-                    plate_overhead_min=5, purge_g_per_color_change=1.0),
+                    plate_overhead_min=5, purge_g_per_color_change=1.0, color_change_s=60),
+            Printer(id="a1mini", name="Bambu Lab A1 mini + AMS lite", price_pln=1500, lifetime_hours=4000,
+                    avg_power_w=80, maintenance_per_hour_pln=0.25, throughput_g_per_h=25,
+                    plate_overhead_min=5, purge_g_per_color_change=1.0, color_change_s=60,
+                    bed_x_mm=180, bed_y_mm=180),
         ],
         filaments=[
             Filament(id="pla", name="PLA", price_per_kg_pln=70, density_g_cm3=1.24),

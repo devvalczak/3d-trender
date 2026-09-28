@@ -13,7 +13,7 @@ class CostInput(BaseModel):
     printer_id: str | None = None
     filament_id: str | None = None
     units_per_plate: int = Field(1, ge=1, description="Ile sztuk mieści się na jednym stole")
-    color_changes: int = Field(0, ge=0, description="Zmiany koloru AMS na sztukę")
+    color_changes: int = Field(0, ge=0, description="Zmiany koloru AMS na całą płytę (wspólne dla wszystkich sztuk)")
     post_processing_min: float = Field(0, ge=0)
     license_cost_pln: float = Field(0, ge=0, description="Koszt pliku/licencji komercyjnej (całość)")
     channel: str | None = None
@@ -60,11 +60,13 @@ def compute_cost(inp: CostInput, profile: Profile) -> CostBreakdown:
     printer = profile.printer(inp.printer_id)
     fil = profile.filament(inp.filament_id)
 
-    purge = inp.color_changes * printer.purge_g_per_color_change
+    # AMS zmienia kolor raz dla całej warstwy, więc płukanie i czas zmian dzielą się na sztuki na płycie
+    purge = inp.color_changes * printer.purge_g_per_color_change / inp.units_per_plate
     filament_g = inp.weight_g * (1 + profile.waste_pct) + purge
     material = filament_g / 1000 * fil.price_per_kg_pln
 
-    machine_h = inp.print_time_h + printer.plate_overhead_min / 60 / inp.units_per_plate
+    plate_extra_h = printer.plate_overhead_min / 60 + inp.color_changes * printer.color_change_s / 3600
+    machine_h = inp.print_time_h + plate_extra_h / inp.units_per_plate
     energy = printer.avg_power_w / 1000 * machine_h * profile.energy_price_kwh_pln
     depreciation = printer.price_pln / printer.lifetime_hours * machine_h
     maintenance = printer.maintenance_per_hour_pln * machine_h
