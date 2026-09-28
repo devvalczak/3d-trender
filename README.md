@@ -23,7 +23,33 @@ Pozostałe zakładki służą do ręcznego sprawdzania:
 - **Kalkulator**: filament, prąd, amortyzację drukarki, serwis, nieudane wydruki, pracę, opakowanie, licencję i prowizję. Wagę i czas czyta z pociętego **.3mf z Bambu Studio**, z **G-code** albo szacuje z **STL**.
 - **Trendy i sezony**: Google Trends, rosnące frazy do obserwowania i kalendarz okazji (Halloween, Święta, Dzień Matki…).
 
-## Uruchomienie
+## Uruchomienie w Dockerze (macOS, Windows, Linux)
+
+Wymagany jest [Docker Desktop](https://www.docker.com/products/docker-desktop/) (macOS/Windows) albo Docker Engine z wtyczką Compose (Linux). Obraz działa na procesorach Intel/AMD i Apple Silicon.
+
+```bash
+git clone -b claude/3d-print-prep-automation-6o5g6z https://github.com/devvalczak/3d-trender
+cd 3d-trender
+docker compose up -d --build
+```
+
+Otwórz http://localhost:8000. Bez pliku `.env` aplikacja startuje w trybie DEMO.
+
+| Co | Jak |
+|---|---|
+| Klucze API | skopiuj `.env.example` do `.env` (Windows: `copy .env.example .env`), uzupełnij i uruchom `docker compose up -d` |
+| Logi | `docker compose logs -f` |
+| Zatrzymanie | `docker compose down` (dane zostają) |
+| Aktualizacja | `git pull` i `docker compose up -d --build` |
+| Inny port | `TRENDER_PORT=9000` w `.env` |
+| Dostęp z telefonu w sieci domowej | `TRENDER_BIND=0.0.0.0` w `.env`, potem `http://<IP komputera>:8000` |
+| Google Trends bez SerpApi | `WITH_PYTRENDS=true` w `.env` i `docker compose up -d --build` |
+| Kopia bazy | `docker compose cp trender:/app/data/trender.db ./trender-backup.db` |
+| Usunięcie wszystkiego z danymi | `docker compose down -v` |
+
+Baza SQLite leży w wolumenie Dockera `trender-data`, więc przetrwa restart i przebudowę obrazu. Aplikacja w kontenerze działa jako zwykły użytkownik (nie root). Domyślnie jest dostępna tylko z tego komputera.
+
+## Uruchomienie bez Dockera
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate

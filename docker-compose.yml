@@ -1,0 +1,27 @@
+# Uruchomienie:  docker compose up -d   ->  http://localhost:8000
+services:
+  trender:
+    build:
+      context: .
+      args:
+        WITH_PYTRENDS: ${WITH_PYTRENDS:-false}
+    image: 3d-trender:latest
+    container_name: 3d-trender
+    restart: unless-stopped
+    # Domyślnie aplikacja jest dostępna tylko z tego komputera.
+    # Dostęp z telefonu w sieci domowej: ustaw TRENDER_BIND=0.0.0.0 (np. w pliku .env).
+    ports:
+      - "${TRENDER_BIND:-127.0.0.1}:${TRENDER_PORT:-8000}:8000"
+    # Klucze API (opcjonalne, patrz .env.example). Bez pliku .env aplikacja działa w trybie DEMO.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      DB_PATH: /app/data/trender.db
+    volumes:
+      - trender-data:/app/data
+
+volumes:
+  trender-data:

@@ -1,0 +1,5 @@
+# LF wszędzie: Dockerfile i skrypty muszą działać w kontenerze Linux także po klonowaniu na Windows
+* text=auto eol=lf
+*.png binary
+*.3mf binary
+*.stl binary
